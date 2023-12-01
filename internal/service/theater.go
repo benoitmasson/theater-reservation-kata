@@ -3,12 +3,12 @@ package service
 import (
 	"fmt"
 	"math"
-	"math/big"
 	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/benoitmasson/theater-reservation-kata/internal/dao"
+	"github.com/benoitmasson/theater-reservation-kata/internal/domain/price"
 	"github.com/benoitmasson/theater-reservation-kata/internal/types"
 )
 
@@ -150,22 +150,19 @@ func (t *TheaterService) Reservation(customerID int64, reservationCount int, res
 	}
 
 	// calculate raw price
-	myPrice := t.performancePriceDAO.FetchPerformancePrice(performance.ID)
+	myPrice := price.NewAmountFromBigFloat(t.performancePriceDAO.FetchPerformancePrice(performance.ID))
 
-	initialPrice := big.NewFloat(0)
+	initialPrice := price.NewEmptyAmount()
 	for _, foundSeat := range foundSeats {
-		seatPrice := &big.Float{}
-		seatPrice = seatPrice.Copy(myPrice)
-		categoryRatio := big.NewFloat(1.)
+		categoryRatio := price.NewRateFromFloat(1)
 		if seatsCategory[foundSeat] == types.ZoneCategoryPremium {
-			categoryRatio = big.NewFloat(1.5)
+			categoryRatio = price.NewRateFromFloat(1.5)
 		}
-		seatPrice = seatPrice.Mul(seatPrice, categoryRatio)
-		initialPrice = initialPrice.Add(initialPrice, seatPrice)
+		initialPrice = initialPrice.Add(myPrice.Apply(categoryRatio))
 	}
 
 	// check and apply discounts and fidelity program
-	discountTime := t.voucherProgramDAO.FetchVoucherProgram(performance.StartTime.UTC())
+	discountTime := price.NewRateFromBigFloat(t.voucherProgramDAO.FetchVoucherProgram(performance.StartTime.UTC()))
 
 	// has he subscribed or not
 	customerSubscriptionDAO := dao.CustomerSubscriptionDAO{}
@@ -174,17 +171,10 @@ func (t *TheaterService) Reservation(customerID int64, reservationCount int, res
 	totalBilling := initialPrice
 	if isSubscribed {
 		// apply a 25% discount when the user is subscribed
-		removePercent := big.NewFloat(0.175)
-		one := big.NewFloat(1)
-		discount := one.Sub(one, removePercent)
-		totalBilling = initialPrice.Mul(initialPrice, discount)
+		totalBilling = initialPrice.Apply(price.NewDiscountPercentRateFromFloat(17.5))
 	}
-	one := big.NewFloat(1)
-	discountRatio := one.Sub(one, discountTime)
-	totalBilling = totalBilling.Mul(totalBilling, discountRatio)
-	totalBillingFloat, _ := totalBilling.Float64()
-	totalBillingFloat = math.Round(100*totalBillingFloat) / 100
-	total := fmt.Sprintf("%.2f€", totalBillingFloat)
+	totalBilling = totalBilling.Apply(price.NewRateFromFloat(1).Substract(discountTime))
+	total := totalBilling.String() + "€"
 
 	sb.WriteString("\t<seatCategory>")
 	sb.WriteString(string(reservationCategory))
