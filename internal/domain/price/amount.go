@@ -16,6 +16,12 @@ func NewEmptyAmount() Amount {
 	}
 }
 
+func NewAmountFromFloat(f float64) Amount {
+	return Amount{
+		value: big.NewFloat(f),
+	}
+}
+
 func NewAmountFromBigFloat(value *big.Float) Amount {
 	return Amount{
 		value: value,
@@ -30,6 +36,10 @@ func (a Amount) Add(b Amount) Amount {
 func (a Amount) Apply(r Rate) Amount {
 	f := big.NewFloat(0)
 	return NewAmountFromBigFloat(f.Mul(a.value, r.value))
+}
+
+func (a Amount) Equals(b Amount) bool {
+	return a.value.Cmp(b.value) == 0
 }
 
 func (a Amount) AsBigFloat() *big.Float {

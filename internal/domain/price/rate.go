@@ -37,6 +37,10 @@ func (r Rate) Multiply(s Rate) Rate {
 	return NewRateFromBigFloat(f.Mul(r.value, s.value))
 }
 
+func (r Rate) Equals(s Rate) bool {
+	return r.value.Cmp(s.value) == 0
+}
+
 func (r Rate) AsBigFloat() *big.Float {
 	return r.value
 }
